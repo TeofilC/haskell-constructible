@@ -47,7 +47,8 @@ module Data.Real.Constructible (
   Construct,
   deconstruct,
   fromConstruct,
-  ConstructException (..)) where
+  ConstructException (..),
+  sqC) where
 
 import Control.Applicative ((<$>), (<*>), (<|>), empty)
 import Control.Exception (Exception, ArithException (..), throw)
@@ -95,6 +96,12 @@ mulK Sqrt{} SqrtZero _ = SqrtZero
 mulK Sqrt{} _ SqrtZero = SqrtZero
 mulK (Sqrt k r) (SqrtElt a b) (SqrtElt c d) =
   SqrtElt (addK k (mulK k a c) (mulK k r (mulK k b d))) (addK k (mulK k a d) (mulK k b c))
+
+sqK :: Field k -> Elt k -> Elt k
+sqK Q a = a*a
+sqK Sqrt{} SqrtZero = SqrtZero
+sqK (Sqrt k r) (SqrtElt a b) =
+  SqrtElt (addK k (sqK k a) (mulK k r (sqK k b))) (mulK k (fromRationalK k 2) (mulK k a b))
 
 subK :: Field k -> Elt k -> Elt k -> Elt k
 subK Q a b = a - b
@@ -395,6 +402,9 @@ instance Enum Construct where
   enumFromThenTo e1 e2 e3 = takeWhile predicate (enumFromThen e1 e2) where
     predicate | e2 >= e1 = (<= e3)
               | otherwise = (>= e3)
+
+sqC :: Construct -> Construct
+sqC (C k a) = C k (sqK k a)
 
 mk :: a -> a -> Complex a
 mk = (:+)
