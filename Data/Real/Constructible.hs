@@ -54,7 +54,7 @@ import Control.Applicative ((<$>), (<*>), (<|>), empty)
 import Control.Exception (Exception, ArithException (..), throw)
 import Data.Complex.Generic (Complex (..))
 import Data.Complex.Generic.TH (deriveComplexF)
-import Data.Ratio ((%), numerator, denominator)
+import Data.Ratio (Ratio(..), (%), numerator, denominator)
 import Data.Typeable (Typeable)
 import Math.NumberTheory.Powers.Squares (exactSquareRoot)
 import Numeric.Search.Integer (search)
@@ -73,7 +73,7 @@ instance Show (Field k) where
     showParen (d > 9) $ showsPrec 9 k . showString "[sqrt " . showsPrecK k 10 r . showString "]"
 
 type family Elt (k :: FieldShape)
-type instance Elt 'QShape = Rational
+type instance Elt 'QShape = Ratio Int
 data SqrtElt k = SqrtZero | SqrtElt !(Elt k) !(Elt k)
 type instance Elt ('SqrtShape k) = SqrtElt k
 
@@ -118,7 +118,7 @@ absK :: Field k -> Elt k -> Elt k
 absK Q a = abs a
 absK k a = if sgnK k a == LT then negateK k a else a
 
-signumK :: Field k -> Elt k -> Rational
+signumK :: Field k -> Elt k -> Ratio Int
 signumK Q a = signum a
 signumK k a = case sgnK k a of LT -> -1; EQ -> 0; GT -> 1
 
@@ -164,7 +164,7 @@ zeroK :: Field k -> Elt k
 zeroK Q = 0
 zeroK Sqrt{} = SqrtZero
 
-fromRationalK :: Field k -> Rational -> Elt k
+fromRationalK :: Field k -> Ratio Int -> Elt k
 fromRationalK Q a = a
 fromRationalK (Sqrt k _) a = sqrtLift k (fromRationalK k a)
 
@@ -219,7 +219,7 @@ showsPrecK (Sqrt k r) d (SqrtElt a b) = case sgnK k b of
      | otherwise -> (flip (showsPrecK k) a -! mulSqrtS k (negateK k b) r) d
 
 fromRatioK :: Floating a => Field k -> Elt k -> Elt k -> a
-fromRatioK Q = \a b -> fromRational (a/b)
+fromRatioK Q = \a b -> fromRational (toRational $ a/b)
 fromRatioK (Sqrt k r) = er where
   e = fromRatioK k
   s = sqrt (e r (fromRationalK k 1))
@@ -247,7 +247,7 @@ fromConstructK k a = fromRatioK k a (fromRationalK k 1)
 data Construct where
   C :: !(Field k) -> !(Elt k) -> Construct
 
-deconstructK :: Field k -> Elt k -> Either Rational (Construct, Construct, Construct)
+deconstructK :: Field k -> Elt k -> Either (Ratio Int) (Construct, Construct, Construct)
 deconstructK Q a = Left a
 deconstructK Sqrt{} SqrtZero = Left 0
 deconstructK (Sqrt k r) (SqrtElt a b)
@@ -264,7 +264,7 @@ a finite tree that terminates in 'Rational' leaves.
 Note that two constructible numbers that compare as equal may
 deconstruct in different ways.
 -}
-deconstruct :: Construct -> Either Rational (Construct, Construct, Construct)
+deconstruct :: Construct -> Either (Ratio Int) (Construct, Construct, Construct)
 deconstruct (C k a) = deconstructK k a
 
 data JoinK k1 k2 where
@@ -322,7 +322,7 @@ instance Num Construct where
 instance Fractional Construct where
   C k1 a1 / C k2 a2 = case joinK k1 k2 of JoinK k f1 f2 -> C k (divK k (f1 a1) (f2 a2))
   recip (C k a) = C k (recipK k a)
-  fromRational = C Q
+  fromRational = C Q . fromRational
 
 -- |The type of exceptions thrown by impossible 'Construct' operations.
 data ConstructException =
@@ -384,7 +384,7 @@ fact rational.  'toRational' on an irrational number will throw the
 'ConstructIrrational' exception.
 -}
 instance Real Construct where
-  toRational = either id (\_ -> throw ConstructIrrational) . deconstruct
+  toRational = either toRational (\_ -> throw ConstructIrrational) . deconstruct
 
 instance RealFrac Construct where
   properFraction (C Q x) = (m, C Q y) where (m, y) = properFraction x
